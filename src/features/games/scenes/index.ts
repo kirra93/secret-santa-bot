@@ -1,5 +1,5 @@
-import { Scene } from "@gramio/scenes";
-import { InlineKeyboard } from "gramio";
+import { type EnterExit, Scene } from "@gramio/scenes";
+import { type AnyBot, Composer, type Context, InlineKeyboard } from "gramio";
 import { registerUser } from "../../users/service.ts";
 import { GameError } from "../errors.ts";
 import { sceneStorage } from "../repository.ts";
@@ -229,4 +229,12 @@ export const gameScenes = [createScene, wishlistScene, editScene];
 /** Cancels any active scene when navigation changes the user's context. */
 export function cancelScene(telegramId: number) {
 	return sceneStorage.delete(`@gramio/scenes:${telegramId}`);
+}
+
+/** Types scene-start handlers; bot.ts installs scenesDerives once at runtime. */
+export function sceneHandlerComposer() {
+	return new Composer<
+		Context<AnyBot>,
+		Context<AnyBot> & { scene: EnterExit }
+	>();
 }
