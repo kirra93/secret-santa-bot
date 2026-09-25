@@ -4,19 +4,22 @@ import {
 	type ShouldFollowLanguageStrict,
 } from "@gramio/i18n";
 
-/** Supported interface languages; unknown Telegram languages use English. */
+/** Supported interface languages. An unset preference uses Russian. */
 export type Locale = "ru" | "en";
 
-/** Keeps the current Russian experience for Telegram accounts without a language code. */
-export function localeFromTelegram(languageCode?: string): Locale {
-	if (!languageCode) return "ru";
-	return languageCode.toLowerCase().split(/[-_]/)[0] === "ru" ? "ru" : "en";
+/** Resolves an optional saved preference for all user-facing messages. */
+export function effectiveLocale(locale: Locale | null): Locale {
+	return locale ?? "ru";
 }
 
 const ru = {
 	home: "🎅 Тайный Санта\n\nСоздай игру или присоединись по приглашению.",
 	createGame: "Создать игру",
 	myGames: "Мои игры",
+	languageButton: "Язык",
+	languageTitle: "Выбери язык интерфейса.",
+	russianButton: "Русский",
+	englishButton: "English",
 	helpButton: "Помощь",
 	back: "◀ Назад",
 	backToGames: "◀ Мои игры",
@@ -121,6 +124,10 @@ const en = {
 	home: "🎅 Secret Santa\n\nCreate a game or join one with an invite link.",
 	createGame: "Create a game",
 	myGames: "My games",
+	languageButton: "Language",
+	languageTitle: "Choose the interface language.",
+	russianButton: "Русский",
+	englishButton: "English",
 	helpButton: "Help",
 	back: "◀ Back",
 	backToGames: "◀ My games",

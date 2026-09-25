@@ -1,5 +1,5 @@
 import { InlineKeyboard } from "gramio";
-import { t } from "../../../i18n.ts";
+import { effectiveLocale, t } from "../../../i18n.ts";
 import { registerUser } from "../../users/service.ts";
 import { GameError } from "../errors.ts";
 import {
@@ -17,7 +17,7 @@ export const managementHandlers = sceneHandlerComposer().callbackQuery(
 		await ctx.answer();
 		if (!ctx.from || ctx.message?.chat.type !== "private") return;
 		const user = await registerUser(ctx.from);
-		const locale = user.locale;
+		const locale = effectiveLocale(user.locale);
 		try {
 			const [, action, rawId] = ctx.queryData;
 			const id = Number(rawId);

@@ -10,6 +10,7 @@ import {
 	games,
 	participants,
 	sceneStates,
+	users,
 } from "../src/db/schema.ts";
 import { deliverPending } from "../src/features/games/notifications.ts";
 import {
@@ -30,6 +31,10 @@ test("A creates a game, B and C join, and the draw remains private", async () =>
 	const carol = env.createUser({ first_name: "Carol" });
 	let gameId: number | undefined;
 	try {
+		await db
+			.update(users)
+			.set({ locale: null })
+			.where(eq(users.telegramId, bob.payload.id));
 		await alice.sendCommand("start");
 		const home = env.lastBotMessage();
 		assert.ok(home);
@@ -90,6 +95,55 @@ test("A creates a game, B and C join, and the draw remains private", async () =>
 			0,
 		);
 		assert.ok(await gameByInvite(game.inviteCode));
+
+		await bob.sendCommand("start");
+		assert.match(
+			String(env.lastApiCall("sendMessage")?.params.text ?? ""),
+			/Тайный Санта/,
+		);
+		assert.equal(
+			(await registerUser({ id: bob.payload.id, firstName: "Bob" })).locale,
+			null,
+		);
+		const bobHome = env.lastBotMessage({ chat: bob.payload.id });
+		assert.ok(bobHome);
+		await bob.click("language", bobHome);
+		assert.match(
+			String(env.lastApiCall("editMessageText")?.params?.text ?? ""),
+			/Выбери язык/,
+		);
+		await bob.click("lang:en", bobHome);
+		assert.match(
+			String(env.lastApiCall("editMessageText")?.params?.text ?? ""),
+			/Choose the interface language/,
+		);
+		assert.equal(
+			(await registerUser({ id: bob.payload.id, firstName: "Bob" })).locale,
+			"en",
+		);
+		await bob.sendCommand("start");
+		assert.match(
+			String(env.lastApiCall("sendMessage")?.params.text ?? ""),
+			/Secret Santa/,
+		);
+
+		const bobEnglishHome = env.lastBotMessage({ chat: bob.payload.id });
+		assert.ok(bobEnglishHome);
+		await bob.click("language", bobEnglishHome);
+		await bob.click("lang:ru", bobEnglishHome);
+		assert.equal(
+			(await registerUser({ id: bob.payload.id, firstName: "Bob" })).locale,
+			"ru",
+		);
+		await bob.sendCommand("start");
+		assert.match(
+			String(env.lastApiCall("sendMessage")?.params.text ?? ""),
+			/Тайный Санта/,
+		);
+		const bobRussianHome = env.lastBotMessage({ chat: bob.payload.id });
+		assert.ok(bobRussianHome);
+		await bob.click("language", bobRussianHome);
+		await bob.click("lang:en", bobRussianHome);
 
 		for (const user of [bob, carol]) {
 			await user.sendCommand("start", `game_${game.inviteCode}`);

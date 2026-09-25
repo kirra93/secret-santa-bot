@@ -2,8 +2,8 @@ import { type EnterExit, Scene } from "@gramio/scenes";
 import { type AnyBot, Composer, type Context, InlineKeyboard } from "gramio";
 import {
 	budgetPreset,
+	effectiveLocale,
 	type Locale,
-	localeFromTelegram,
 	t,
 } from "../../../i18n.ts";
 import { registerUser } from "../../users/service.ts";
@@ -31,8 +31,8 @@ const budgetKeyboard = (locale: Locale) =>
 		.text(t(locale, "budgetNoneButton"), "budget:none");
 const dateKeyboard = (locale: Locale) =>
 	new InlineKeyboard().text(t(locale, "skip"), "date:skip");
-const localeOf = (from?: { languageCode?: string }) =>
-	localeFromTelegram(from?.languageCode);
+const localeOf = async (from?: { id: number; firstName: string }) =>
+	from ? effectiveLocale((await registerUser(from)).locale) : "ru";
 
 function input(
 	value: string | undefined,
@@ -52,7 +52,7 @@ export const createScene = new Scene("game-create")
 		c.on("message", async (ctx, next) => {
 			if (ctx.chat.type !== "private" || !ctx.text || ctx.text.startsWith("/"))
 				return next();
-			const locale = localeOf(ctx.from);
+			const locale = await localeOf(ctx.from);
 			try {
 				const name = input(ctx.text, 100, "nameTooLong");
 				await ctx.send(t(locale, "createBudgetPrompt"), {
@@ -73,7 +73,7 @@ export const createScene = new Scene("game-create")
 					ctx.text.startsWith("/")
 				)
 					return next();
-				const locale = localeOf(ctx.from);
+				const locale = await localeOf(ctx.from);
 				try {
 					const budget = input(ctx.text, 100, "budgetTooLong");
 					await ctx.send(t(locale, "createDatePrompt"), {
@@ -87,7 +87,7 @@ export const createScene = new Scene("game-create")
 			.callbackQuery(/^budget:(1|2|3|custom|none)$/, async (ctx) => {
 				await ctx.answer();
 				if (ctx.message?.chat.type !== "private") return;
-				const locale = localeOf(ctx.from);
+				const locale = await localeOf(ctx.from);
 				const choice = ctx.queryData[1];
 				if (choice === "custom")
 					return ctx.editText(t(locale, "customBudgetPrompt"), {
@@ -119,7 +119,7 @@ export const createScene = new Scene("game-create")
 					ctx.text.startsWith("/")
 				)
 					return next();
-				const locale = localeOf(ctx.from);
+				const locale = await localeOf(ctx.from);
 				try {
 					const date = exchangeDate(input(ctx.text));
 					if (
@@ -149,7 +149,7 @@ export const createScene = new Scene("game-create")
 			})
 			.callbackQuery("date:skip", async (ctx) => {
 				await ctx.answer();
-				const locale = localeOf(ctx.from);
+				const locale = await localeOf(ctx.from);
 				try {
 					if (
 						!ctx.from ||
@@ -187,7 +187,7 @@ export const wishlistScene = new Scene("game-wishlist")
 		c.on("message", async (ctx, next) => {
 			if (ctx.chat.type !== "private" || !ctx.text || ctx.text.startsWith("/"))
 				return next();
-			const locale = localeOf(ctx.from);
+			const locale = await localeOf(ctx.from);
 			try {
 				if (!ctx.from) return;
 				const user = await registerUser(ctx.from);
@@ -214,7 +214,7 @@ export const editScene = new Scene("game-edit")
 		c.on("message", async (ctx, next) => {
 			if (ctx.chat.type !== "private" || !ctx.text || ctx.text.startsWith("/"))
 				return next();
-			const locale = localeOf(ctx.from);
+			const locale = await localeOf(ctx.from);
 			try {
 				if (!ctx.from) return;
 				const user = await registerUser(ctx.from);

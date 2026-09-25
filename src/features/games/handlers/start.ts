@@ -1,5 +1,5 @@
 import { Composer, InlineKeyboard } from "gramio";
-import { budgetText, t } from "../../../i18n.ts";
+import { budgetText, effectiveLocale, t } from "../../../i18n.ts";
 import { registerUser } from "../../users/service.ts";
 import { deliverPending } from "../notifications.ts";
 import { cancelScene } from "../scenes/index.ts";
@@ -10,7 +10,7 @@ import { gameByInvite } from "../service.ts";
 export const startHandlers = new Composer().command("start", async (ctx) => {
 	if (ctx.chat.type !== "private" || !ctx.from) return;
 	const user = await registerUser(ctx.from);
-	const locale = user.locale;
+	const locale = effectiveLocale(user.locale);
 	await deliverPending(
 		(telegramId, text) =>
 			ctx.bot.api.sendMessage({ chat_id: telegramId, text }),

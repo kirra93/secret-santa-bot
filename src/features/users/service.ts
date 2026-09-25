@@ -1,14 +1,13 @@
 import { eq } from "drizzle-orm";
 import { db } from "../../db/index.ts";
 import { users } from "../../db/schema.ts";
-import { localeFromTelegram } from "../../i18n.ts";
+import type { Locale } from "../../i18n.ts";
 
 export async function registerUser(from: {
 	id: number;
 	username?: string;
 	firstName: string;
 	lastName?: string;
-	languageCode?: string;
 }) {
 	const [user] = await db
 		.insert(users)
@@ -17,7 +16,6 @@ export async function registerUser(from: {
 			username: from.username ?? null,
 			firstName: from.firstName,
 			lastName: from.lastName ?? null,
-			locale: localeFromTelegram(from.languageCode),
 		})
 		.onConflictDoUpdate({
 			target: users.telegramId,
@@ -25,9 +23,6 @@ export async function registerUser(from: {
 				username: from.username ?? null,
 				firstName: from.firstName,
 				lastName: from.lastName ?? null,
-				...(from.languageCode
-					? { locale: localeFromTelegram(from.languageCode) }
-					: {}),
 			},
 		})
 		.returning();
@@ -40,5 +35,16 @@ export async function findUser(telegramId: number) {
 		.select()
 		.from(users)
 		.where(eq(users.telegramId, telegramId));
+	return user;
+}
+
+/** Saves an explicit interface language choice. */
+export async function setUserLocale(userId: number, locale: Locale) {
+	const [user] = await db
+		.update(users)
+		.set({ locale })
+		.where(eq(users.id, userId))
+		.returning();
+	if (!user) throw new Error("User not found");
 	return user;
 }

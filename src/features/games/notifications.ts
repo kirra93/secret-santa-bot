@@ -1,4 +1,4 @@
-import { budgetText, type Locale, t } from "../../i18n.ts";
+import { budgetText, effectiveLocale, type Locale, t } from "../../i18n.ts";
 import {
 	gameById,
 	markNotified,
@@ -55,7 +55,10 @@ export async function deliverPending(
 			continue;
 		}
 		try {
-			await send(giver.telegramId, giftText(game, receiver, giver.locale));
+			await send(
+				giver.telegramId,
+				giftText(game, receiver, effectiveLocale(giver.locale)),
+			);
 			await markNotified(assignment.id);
 		} catch (error) {
 			console.error("Result delivery failed", {

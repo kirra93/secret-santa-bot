@@ -15,9 +15,7 @@ export const users = pgTable("users", {
 	username: text("username"),
 	firstName: text("first_name").notNull(),
 	lastName: text("last_name"),
-	locale: text("locale", { enum: ["ru", "en"] })
-		.notNull()
-		.default("ru"),
+	locale: text("locale", { enum: ["ru", "en"] }),
 	createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 

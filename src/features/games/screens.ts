@@ -11,7 +11,26 @@ export const homeScreen = (locale: Locale) => ({
 		.row()
 		.text(t(locale, "myGames"), "games")
 		.row()
+		.text(t(locale, "languageButton"), "language")
+		.row()
 		.text(t(locale, "helpButton"), "help"),
+});
+
+/** Renders the language picker, marking the active preference. */
+export const languageScreen = (locale: Locale) => ({
+	text: t(locale, "languageTitle"),
+	reply_markup: new InlineKeyboard()
+		.text(
+			`${locale === "ru" ? "✅ " : ""}${t(locale, "russianButton")}`,
+			"lang:ru",
+		)
+		.row()
+		.text(
+			`${locale === "en" ? "✅ " : ""}${t(locale, "englishButton")}`,
+			"lang:en",
+		)
+		.row()
+		.text(t(locale, "homeButton"), "home"),
 });
 
 /** Builds common navigation buttons. */

@@ -49,6 +49,7 @@ User
 - username
 - firstName
 - lastName
+- locale (nullable; null — русский по умолчанию)
 - createdAt
 ```
 
@@ -65,6 +66,7 @@ Telegram ID является уникальным идентификатором
 
 [Создать игру]
 [Мои игры]
+[Язык]
 [Помощь]
 ```
 

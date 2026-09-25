@@ -2,7 +2,7 @@
 
 A small Telegram bot for running a Secret Santa game in private chats. Create a game, share its invite link, collect wishlists, then draw names. Each player sees only the person they're buying for.
 
-The bot speaks Russian or English based on the user's Telegram language. Accounts without a language setting get Russian. Built-in budget options are shown in each reader's language; custom budget text stays as entered.
+The bot speaks Russian or English. Choose a language from the home menu; until you do, it uses Russian. Built-in budget options are shown in each reader's language; custom budget text stays as entered.
 
 ## Run locally
 
