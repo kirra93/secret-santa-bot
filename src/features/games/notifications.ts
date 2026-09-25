@@ -1,3 +1,4 @@
+import { budgetText, type Locale, t } from "../../i18n.ts";
 import {
 	gameById,
 	markNotified,
@@ -9,8 +10,16 @@ import {
 export function giftText(
 	game: NonNullable<Awaited<ReturnType<typeof gameById>>>,
 	receiver: { firstName: string; wishlist: string | null },
+	locale: Locale,
 ) {
-	return `🎅 Жеребьёвка завершена!\n\nТы Тайный Санта для: 🎁 ${receiver.firstName}\n\nПожелания: ${receiver.wishlist || "не указаны"}\nБюджет: ${game.budget}\nДата обмена: ${game.exchangeDate ?? "не указана"}`;
+	return t(
+		locale,
+		"gift",
+		receiver.firstName,
+		receiver.wishlist || t(locale, "wishesNotSpecified"),
+		budgetText(locale, game.budget),
+		game.exchangeDate ?? t(locale, "notSpecified"),
+	);
 }
 
 /** Sends unsent results and marks them afterwards; a crash between those steps may cause one duplicate. */
@@ -46,7 +55,7 @@ export async function deliverPending(
 			continue;
 		}
 		try {
-			await send(giver.telegramId, giftText(game, receiver));
+			await send(giver.telegramId, giftText(game, receiver, giver.locale));
 			await markNotified(assignment.id);
 		} catch (error) {
 			console.error("Result delivery failed", {

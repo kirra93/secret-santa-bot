@@ -22,6 +22,13 @@
       "when": 1790365392095,
       "tag": "0002_keen_butterfly",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1790372436163,
+      "tag": "0003_silky_stingray",
+      "breakpoints": true
     }
   ]
 }

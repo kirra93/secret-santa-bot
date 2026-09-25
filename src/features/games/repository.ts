@@ -101,6 +101,7 @@ export function members(gameId: number) {
 			wishlist: participants.wishlist,
 			telegramId: users.telegramId,
 			firstName: users.firstName,
+			locale: users.locale,
 			lastName: users.lastName,
 		})
 		.from(participants)

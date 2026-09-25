@@ -26,7 +26,7 @@ import { registerUser } from "../src/features/users/service.ts";
 test("A creates a game, B and C join, and the draw remains private", async () => {
 	const env = new TelegramTestEnvironment(bot);
 	const alice = env.createUser({ first_name: "Alice" });
-	const bob = env.createUser({ first_name: "Bob" });
+	const bob = env.createUser({ first_name: "Bob", language_code: "en" });
 	const carol = env.createUser({ first_name: "Carol" });
 	let gameId: number | undefined;
 	try {
@@ -93,6 +93,13 @@ test("A creates a game, B and C join, and the draw remains private", async () =>
 
 		for (const user of [bob, carol]) {
 			await user.sendCommand("start", `game_${game.inviteCode}`);
+			if (user === bob) {
+				const inviteText = String(
+					env.lastApiCall("sendMessage")?.params.text ?? "",
+				);
+				assert.match(inviteText, /You're invited to Secret Santa/);
+				assert.match(inviteText, /₽1,000–2,000/);
+			}
 			const invite = env.lastBotMessage();
 			assert.ok(invite);
 			await user.click(`join:${game.inviteCode}`, invite);
@@ -110,7 +117,11 @@ test("A creates a game, B and C join, and the draw remains private", async () =>
 		const bobCard = env.lastBotMessage({ chat: bob.payload.id });
 		assert.ok(bobCard);
 		await bob.click(`wish:${game.id}`, bobCard);
-		await bob.sendMessage("Книги и кофе");
+		assert.match(
+			String(env.lastApiCall("editMessageText")?.params?.text ?? ""),
+			/Your wishlist/,
+		);
+		await bob.sendMessage("Books and coffee");
 		const [bobWishlist] = await db
 			.select()
 			.from(participants)
@@ -123,7 +134,11 @@ test("A creates a game, B and C join, and the draw remains private", async () =>
 					),
 				),
 			);
-		assert.equal(bobWishlist?.wishlist, "Книги и кофе");
+		assert.equal(bobWishlist?.wishlist, "Books and coffee");
+		assert.equal(
+			(await registerUser({ id: bob.payload.id, firstName: "Bob" })).locale,
+			"en",
+		);
 
 		const carolCard = env.lastBotMessage({ chat: carol.payload.id });
 		assert.ok(carolCard);
@@ -218,13 +233,20 @@ test("A creates a game, B and C join, and the draw remains private", async () =>
 			() => updateGame(game.id, owner.id, { name: "Новое" }),
 			/нельзя менять/,
 		);
+		const gifts = env.filterApiCalls("sendMessage");
 		assert.equal(
-			env
-				.filterApiCalls("sendMessage")
-				.filter((call) =>
-					String(call.params.text ?? "").includes("Ты Тайный Санта для"),
-				).length,
-			3,
+			gifts.filter((call) =>
+				String(call.params.text ?? "").includes("Ты Тайный Санта для"),
+			).length,
+			2,
+		);
+		assert.ok(
+			gifts.some(
+				(call) =>
+					call.params.chat_id === bob.payload.id &&
+					String(call.params.text ?? "").includes("You're Secret Santa for") &&
+					String(call.params.text ?? "").includes("Budget: до 3000 ₽"),
+			),
 		);
 		assert.equal(
 			(

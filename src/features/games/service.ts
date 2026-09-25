@@ -17,9 +17,9 @@ export const myGames = repository.myGames;
 /** Returns a game card only to its participants. */
 export async function gameDetails(gameId: number, userId: number) {
 	const game = await repository.gameById(gameId);
-	if (!game) throw new GameError("Игра не найдена.");
+	if (!game) throw new GameError("gameNotFound");
 	const member = await repository.membership(gameId, userId);
-	if (!member) throw new GameError("Нет доступа.");
+	if (!member) throw new GameError("noAccess");
 	return { game, member, count: (await repository.members(gameId)).length };
 }
 
@@ -30,17 +30,16 @@ export async function ownerGame(
 	editable = false,
 ) {
 	const { game } = await gameDetails(gameId, userId);
-	if (game.ownerId !== userId) throw new GameError("Нет доступа.");
+	if (game.ownerId !== userId) throw new GameError("noAccess");
 	if (editable && game.status !== "recruiting")
-		throw new GameError("Настройки уже нельзя менять.");
+		throw new GameError("settingsLocked");
 	return game;
 }
 
 /** Returns the current wishes only while the participant may edit them. */
 export async function wishlistPrompt(gameId: number, userId: number) {
 	const { game, member } = await gameDetails(gameId, userId);
-	if (game.status !== "recruiting")
-		throw new GameError("Жеребьёвка уже проведена.");
+	if (game.status !== "recruiting") throw new GameError("drawAlready");
 	return member.wishlist;
 }
 
@@ -48,23 +47,22 @@ export async function wishlistPrompt(gameId: number, userId: number) {
 export async function leavePrompt(gameId: number, userId: number) {
 	const { game } = await gameDetails(gameId, userId);
 	if (game.ownerId === userId || game.status !== "recruiting")
-		throw new GameError("Из этой игры уже нельзя выйти.");
+		throw new GameError("leaveLocked");
 }
 
 /** Supplies the draw confirmation count after organizer and status checks. */
 export async function drawPreview(gameId: number, ownerId: number) {
 	const game = await ownerGame(gameId, ownerId);
-	if (game.status !== "recruiting")
-		throw new GameError("Жеребьёвка уже проведена.");
+	if (game.status !== "recruiting") throw new GameError("drawAlready");
 	return (await repository.members(gameId)).length;
 }
 
 /** Resolves only the caller's own recipient. */
 export async function myAssignment(gameId: number, userId: number) {
 	const giver = await repository.membership(gameId, userId);
-	if (!giver) throw new GameError("Нет доступа.");
+	if (!giver) throw new GameError("noAccess");
 	const receiver = await repository.assignmentFor(gameId, giver.id);
-	if (!receiver) throw new GameError("Жеребьёвка ещё не проведена.");
+	if (!receiver) throw new GameError("assignmentPending");
 	return receiver;
 }
 
@@ -76,10 +74,8 @@ export function createGame(
 	exchangeDate: string | null,
 	ownerTelegramId?: number,
 ) {
-	if (!name || name.length > 100)
-		throw new GameError("Название должно быть не длиннее 100 символов.");
-	if (!budget || budget.length > 100)
-		throw new GameError("Бюджет должен быть не длиннее 100 символов.");
+	if (!name || name.length > 100) throw new GameError("nameTooLong");
+	if (!budget || budget.length > 100) throw new GameError("budgetTooLong");
 	return repository.insertGame(
 		ownerId,
 		name,
@@ -97,9 +93,8 @@ export function updateGame(
 	change: repository.GameChange,
 ) {
 	return repository.withGameLock(gameId, async (tx, game) => {
-		if (!game || game.ownerId !== ownerId) throw new GameError("Нет доступа.");
-		if (game.status !== "recruiting")
-			throw new GameError("Настройки уже нельзя менять.");
+		if (!game || game.ownerId !== ownerId) throw new GameError("noAccess");
+		if (game.status !== "recruiting") throw new GameError("settingsLocked");
 		return repository.updateLockedGame(tx, gameId, change);
 	});
 }
@@ -107,7 +102,7 @@ export function updateGame(
 /** Deletes a game only for its organizer under the game lock. */
 export function deleteGame(gameId: number, ownerId: number) {
 	return repository.withGameLock(gameId, async (tx, game) => {
-		if (!game || game.ownerId !== ownerId) throw new GameError("Нет доступа.");
+		if (!game || game.ownerId !== ownerId) throw new GameError("noAccess");
 		await repository.deleteLockedGame(tx, gameId);
 	});
 }
@@ -115,11 +110,10 @@ export function deleteGame(gameId: number, ownerId: number) {
 /** Serializes joining against the game draw. */
 export function joinGame(gameId: number, userId: number) {
 	return repository.withGameLock(gameId, async (tx, game) => {
-		if (!game) throw new GameError("Игра не найдена.");
-		if (game.status !== "recruiting")
-			throw new GameError("Эта игра уже началась.");
+		if (!game) throw new GameError("gameNotFound");
+		if (game.status !== "recruiting") throw new GameError("gameStarted");
 		if (await repository.lockedMember(tx, gameId, userId))
-			throw new GameError("Ты уже участвуешь в этой игре.");
+			throw new GameError("alreadyJoined");
 		await repository.insertMember(tx, gameId, userId);
 	});
 }
@@ -127,10 +121,9 @@ export function joinGame(gameId: number, userId: number) {
 /** Changes wishes only while recruiting and under the same game lock as drawing. */
 export function setWishlist(gameId: number, userId: number, wishlist: string) {
 	return repository.withGameLock(gameId, async (tx, game) => {
-		if (game?.status !== "recruiting")
-			throw new GameError("Пожелания можно менять только до жеребьёвки.");
+		if (game?.status !== "recruiting") throw new GameError("wishlistLocked");
 		if (!(await repository.updateWishlist(tx, gameId, userId, wishlist)))
-			throw new GameError("Ты не участвуешь в игре.");
+			throw new GameError("notParticipant");
 	});
 }
 
@@ -141,14 +134,12 @@ export function removeMember(
 	memberId: number,
 ) {
 	return repository.withGameLock(gameId, async (tx, game) => {
-		if (game?.status !== "recruiting")
-			throw new GameError("Состав игры уже нельзя менять.");
+		if (game?.status !== "recruiting") throw new GameError("rosterLocked");
 		const target = await repository.lockedMemberById(tx, gameId, memberId);
-		if (!target) throw new GameError("Участник не найден.");
-		if (target.userId === game.ownerId)
-			throw new GameError("Организатор не может выйти из игры.");
+		if (!target) throw new GameError("memberNotFound");
+		if (target.userId === game.ownerId) throw new GameError("ownerCannotLeave");
 		if (actorId !== game.ownerId && actorId !== target.userId)
-			throw new GameError("Нет доступа.");
+			throw new GameError("noAccess");
 		await repository.deleteMember(tx, memberId);
 	});
 }
@@ -156,12 +147,10 @@ export function removeMember(
 /** Locks, validates, draws and saves assignments in one database transaction. */
 export function drawGame(gameId: number, ownerId: number) {
 	return repository.withGameLock(gameId, async (tx, game) => {
-		if (!game || game.ownerId !== ownerId) throw new GameError("Нет доступа.");
-		if (game.status !== "recruiting")
-			throw new GameError("Жеребьёвка уже проведена.");
+		if (!game || game.ownerId !== ownerId) throw new GameError("noAccess");
+		if (game.status !== "recruiting") throw new GameError("drawAlready");
 		const roster = await repository.drawRoster(tx, gameId);
-		if (roster.length < 3)
-			throw new GameError("Для жеребьёвки нужно минимум 3 участника.");
+		if (roster.length < 3) throw new GameError("minPlayers");
 		const pairs = drawPairs(roster, randomInt);
 		await repository.saveDraw(
 			tx,
@@ -182,6 +171,6 @@ export function exchangeDate(value: string) {
 		Number.isNaN(Date.parse(value)) ||
 		new Date(value).toISOString().slice(0, 10) !== value
 	)
-		throw new GameError("Введите дату в формате ГГГГ-ММ-ДД.");
+		throw new GameError("invalidDate");
 	return value;
 }

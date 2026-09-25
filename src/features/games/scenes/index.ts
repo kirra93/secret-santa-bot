@@ -1,5 +1,11 @@
 import { type EnterExit, Scene } from "@gramio/scenes";
 import { type AnyBot, Composer, type Context, InlineKeyboard } from "gramio";
+import {
+	budgetPreset,
+	type Locale,
+	localeFromTelegram,
+	t,
+} from "../../../i18n.ts";
 import { registerUser } from "../../users/service.ts";
 import { GameError } from "../errors.ts";
 import { sceneStorage } from "../repository.ts";
@@ -12,33 +18,30 @@ import {
 	updateGame,
 } from "../service.ts";
 
-const budgetKeyboard = () =>
+const budgetKeyboard = (locale: Locale) =>
 	new InlineKeyboard()
-		.text("До 1000 ₽", "budget:1")
+		.text(t(locale, "budget1Button"), "budget:1")
 		.row()
-		.text("1000–2000 ₽", "budget:2")
+		.text(t(locale, "budget2Button"), "budget:2")
 		.row()
-		.text("2000–5000 ₽", "budget:3")
+		.text(t(locale, "budget3Button"), "budget:3")
 		.row()
-		.text("Указать свой", "budget:custom")
+		.text(t(locale, "budgetCustomButton"), "budget:custom")
 		.row()
-		.text("Без ограничения", "budget:none");
-const dateKeyboard = () => new InlineKeyboard().text("Пропустить", "date:skip");
-const choices: Record<string, string> = {
-	"1": "до 1000 ₽",
-	"2": "1000–2000 ₽",
-	"3": "2000–5000 ₽",
-	none: "без ограничения",
-};
+		.text(t(locale, "budgetNoneButton"), "budget:none");
+const dateKeyboard = (locale: Locale) =>
+	new InlineKeyboard().text(t(locale, "skip"), "date:skip");
+const localeOf = (from?: { languageCode?: string }) =>
+	localeFromTelegram(from?.languageCode);
 
-function input(value: string | undefined, max = 500, longMessage?: string) {
+function input(
+	value: string | undefined,
+	max = 500,
+	longCode?: "nameTooLong" | "budgetTooLong",
+) {
 	const text = value?.trim();
-	if (!text || text.length > 500)
-		throw new GameError("Введите текст длиной от 1 до 500 символов.");
-	if (text.length > max)
-		throw new GameError(
-			longMessage ?? "Введите текст длиной от 1 до 500 символов.",
-		);
+	if (!text || text.length > 500) throw new GameError("textLength");
+	if (text.length > max) throw new GameError(longCode ?? "textLength");
 	return text;
 }
 
@@ -49,18 +52,15 @@ export const createScene = new Scene("game-create")
 		c.on("message", async (ctx, next) => {
 			if (ctx.chat.type !== "private" || !ctx.text || ctx.text.startsWith("/"))
 				return next();
+			const locale = localeOf(ctx.from);
 			try {
-				const name = input(
-					ctx.text,
-					100,
-					"Название должно быть не длиннее 100 символов.",
-				);
-				await ctx.send("Какой бюджет подарка?", {
-					reply_markup: budgetKeyboard(),
+				const name = input(ctx.text, 100, "nameTooLong");
+				await ctx.send(t(locale, "createBudgetPrompt"), {
+					reply_markup: budgetKeyboard(locale),
 				});
 				await ctx.scene.update({ name }, { step: "budget" });
 			} catch (error) {
-				await ctx.send(errorText(error));
+				await ctx.send(errorText(error, locale));
 			}
 		}),
 	)
@@ -73,35 +73,40 @@ export const createScene = new Scene("game-create")
 					ctx.text.startsWith("/")
 				)
 					return next();
+				const locale = localeOf(ctx.from);
 				try {
-					const budget = input(
-						ctx.text,
-						100,
-						"Бюджет должен быть не длиннее 100 символов.",
-					);
-					await ctx.send(
-						"Когда будете обмениваться подарками? Введи дату ГГГГ-ММ-ДД или нажми «Пропустить».",
-						{ reply_markup: dateKeyboard() },
-					);
+					const budget = input(ctx.text, 100, "budgetTooLong");
+					await ctx.send(t(locale, "createDatePrompt"), {
+						reply_markup: dateKeyboard(locale),
+					});
 					await ctx.scene.update({ budget }, { step: "date" });
 				} catch (error) {
-					await ctx.send(errorText(error));
+					await ctx.send(errorText(error, locale));
 				}
 			})
 			.callbackQuery(/^budget:(1|2|3|custom|none)$/, async (ctx) => {
 				await ctx.answer();
 				if (ctx.message?.chat.type !== "private") return;
+				const locale = localeOf(ctx.from);
 				const choice = ctx.queryData[1];
 				if (choice === "custom")
-					return ctx.editText("Укажи бюджет сообщением.", {
-						reply_markup: new InlineKeyboard().text("Отмена", "home"),
+					return ctx.editText(t(locale, "customBudgetPrompt"), {
+						reply_markup: new InlineKeyboard().text(
+							t(locale, "cancel"),
+							"home",
+						),
 					});
-				const budget = choice ? choices[choice] : undefined;
-				if (!budget) return ctx.editText("Кнопка устарела.");
-				await ctx.editText(
-					"Когда будете обмениваться подарками? Введи дату ГГГГ-ММ-ДД или пропусти.",
-					{ reply_markup: dateKeyboard() },
-				);
+				const budget =
+					choice === "1" ||
+					choice === "2" ||
+					choice === "3" ||
+					choice === "none"
+						? budgetPreset(choice)
+						: undefined;
+				if (!budget) return ctx.editText(t(locale, "errors.staleButton"));
+				await ctx.editText(t(locale, "createDateCallbackPrompt"), {
+					reply_markup: dateKeyboard(locale),
+				});
 				await ctx.scene.update({ budget }, { step: "date" });
 			}),
 	)
@@ -114,6 +119,7 @@ export const createScene = new Scene("game-create")
 					ctx.text.startsWith("/")
 				)
 					return next();
+				const locale = localeOf(ctx.from);
 				try {
 					const date = exchangeDate(input(ctx.text));
 					if (
@@ -121,7 +127,7 @@ export const createScene = new Scene("game-create")
 						!(ctx.scene.state as { name: string; budget: string }).name ||
 						!(ctx.scene.state as { name: string; budget: string }).budget
 					)
-						throw new GameError("Начни создание игры заново.");
+						throw new GameError("creationRestart");
 					const user = await registerUser(ctx.from);
 					const game = await createGame(
 						user.id,
@@ -134,21 +140,23 @@ export const createScene = new Scene("game-create")
 					const screen = gameScreen(
 						await gameDetails(game.id, user.id),
 						user.id,
+						locale,
 					);
 					await ctx.send(screen.text, { reply_markup: screen.reply_markup });
 				} catch (error) {
-					await ctx.send(errorText(error));
+					await ctx.send(errorText(error, locale));
 				}
 			})
 			.callbackQuery("date:skip", async (ctx) => {
 				await ctx.answer();
+				const locale = localeOf(ctx.from);
 				try {
 					if (
 						!ctx.from ||
 						!(ctx.scene.state as { name: string; budget: string }).name ||
 						!(ctx.scene.state as { name: string; budget: string }).budget
 					)
-						throw new GameError("Начни создание игры заново.");
+						throw new GameError("creationRestart");
 					const user = await registerUser(ctx.from);
 					const game = await createGame(
 						user.id,
@@ -161,12 +169,13 @@ export const createScene = new Scene("game-create")
 					const screen = gameScreen(
 						await gameDetails(game.id, user.id),
 						user.id,
+						locale,
 					);
 					await ctx.editText(screen.text, {
 						reply_markup: screen.reply_markup,
 					});
 				} catch (error) {
-					await ctx.editText(errorText(error));
+					await ctx.editText(errorText(error, locale));
 				}
 			}),
 	);
@@ -178,6 +187,7 @@ export const wishlistScene = new Scene("game-wishlist")
 		c.on("message", async (ctx, next) => {
 			if (ctx.chat.type !== "private" || !ctx.text || ctx.text.startsWith("/"))
 				return next();
+			const locale = localeOf(ctx.from);
 			try {
 				if (!ctx.from) return;
 				const user = await registerUser(ctx.from);
@@ -186,12 +196,13 @@ export const wishlistScene = new Scene("game-wishlist")
 				const screen = gameScreen(
 					await gameDetails(ctx.scene.params.gameId, user.id),
 					user.id,
+					locale,
 				);
-				await ctx.send(`Пожелания сохранены.\n\n${screen.text}`, {
+				await ctx.send(`${t(locale, "wishlistSaved")}\n\n${screen.text}`, {
 					reply_markup: screen.reply_markup,
 				});
 			} catch (error) {
-				await ctx.send(errorText(error));
+				await ctx.send(errorText(error, locale));
 			}
 		}),
 	);
@@ -203,6 +214,7 @@ export const editScene = new Scene("game-edit")
 		c.on("message", async (ctx, next) => {
 			if (ctx.chat.type !== "private" || !ctx.text || ctx.text.startsWith("/"))
 				return next();
+			const locale = localeOf(ctx.from);
 			try {
 				if (!ctx.from) return;
 				const user = await registerUser(ctx.from);
@@ -215,10 +227,14 @@ export const editScene = new Scene("game-edit")
 							: value.slice(0, 100),
 				});
 				await ctx.scene.exit();
-				const screen = gameScreen(await gameDetails(gameId, user.id), user.id);
+				const screen = gameScreen(
+					await gameDetails(gameId, user.id),
+					user.id,
+					locale,
+				);
 				await ctx.send(screen.text, { reply_markup: screen.reply_markup });
 			} catch (error) {
-				await ctx.send(errorText(error));
+				await ctx.send(errorText(error, locale));
 			}
 		}),
 	);

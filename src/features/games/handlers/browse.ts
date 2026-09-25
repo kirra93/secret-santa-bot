@@ -1,4 +1,5 @@
 import { Composer, InlineKeyboard } from "gramio";
+import { t } from "../../../i18n.ts";
 import { registerUser } from "../../users/service.ts";
 import { GameError } from "../errors.ts";
 import { giftText } from "../notifications.ts";
@@ -19,41 +20,45 @@ export const browseHandlers = new Composer().callbackQuery(
 		await ctx.answer();
 		if (!ctx.from || ctx.message?.chat.type !== "private") return;
 		const user = await registerUser(ctx.from);
+		const locale = user.locale;
 		try {
 			await cancelScene(ctx.from.id);
 			const [, action, rawId] = ctx.queryData;
 			if (action === "home") {
-				const screen = homeScreen();
+				const screen = homeScreen(locale);
 				return ctx.editText(screen.text, { reply_markup: screen.reply_markup });
 			}
 			if (action === "games") {
-				const screen = gamesScreen(await myGames(user.id), user.id);
+				const screen = gamesScreen(await myGames(user.id), user.id, locale);
 				return ctx.editText(screen.text, { reply_markup: screen.reply_markup });
 			}
 			if (action === "help")
-				return ctx.editText(
-					"Создай игру, отправь друзьям приглашение и после вступления минимум трёх игроков проведи жеребьёвку. Результат виден только тебе.",
-					{ reply_markup: backKeyboard() },
-				);
+				return ctx.editText(t(locale, "help"), {
+					reply_markup: backKeyboard(locale),
+				});
 			const id = Number(rawId);
 			if (!Number.isSafeInteger(id) || id <= 0)
-				throw new GameError("Кнопка устарела.");
+				throw new GameError("staleButton");
 			const { game } = await gameDetails(id, user.id);
 			if (action === "game") {
-				const screen = gameScreen(await gameDetails(id, user.id), user.id);
+				const screen = gameScreen(
+					await gameDetails(id, user.id),
+					user.id,
+					locale,
+				);
 				return ctx.editText(screen.text, { reply_markup: screen.reply_markup });
 			}
 			if (action === "invite") {
 				const me = await ctx.bot.api.getMe();
 				const url = `https://t.me/${me.username}?start=game_${game.inviteCode}`;
-				return ctx.editText(`Пригласи друзей в «${game.name}»:\n${url}`, {
+				return ctx.editText(t(locale, "inviteShare", game.name, url), {
 					reply_markup: new InlineKeyboard()
 						.url(
-							"Поделиться ссылкой",
+							t(locale, "shareLinkButton"),
 							`https://t.me/share/url?url=${encodeURIComponent(url)}`,
 						)
 						.row()
-						.text("◀ Назад", `game:${id}`),
+						.text(t(locale, "back"), `game:${id}`),
 				});
 			}
 			if (action === "members") {
@@ -66,24 +71,37 @@ export const browseHandlers = new Composer().callbackQuery(
 						person.userId !== user.id
 					)
 						keyboard
-							.text(`Удалить ${person.firstName}`, `remove:${id}:${person.id}`)
+							.text(
+								t(locale, "removeMemberButton", person.firstName),
+								`remove:${id}:${person.id}`,
+							)
 							.row();
 				}
-				keyboard.text("◀ Назад", `game:${id}`);
+				keyboard.text(t(locale, "back"), `game:${id}`);
 				return ctx.editText(
-					`Участники: ${roster.length}\n\n${roster.map((person) => `✅ ${person.firstName}`).join("\n")}`,
+					t(
+						locale,
+						"membersList",
+						roster.length,
+						roster.map((person) => `✅ ${person.firstName}`).join("\n"),
+					),
 					{ reply_markup: keyboard },
 				);
 			}
 			if (action === "assignment") {
 				const receiver = await myAssignment(id, user.id);
-				return ctx.editText(giftText(game, receiver), {
-					reply_markup: new InlineKeyboard().text("◀ Назад", `game:${id}`),
+				return ctx.editText(giftText(game, receiver, locale), {
+					reply_markup: new InlineKeyboard().text(
+						t(locale, "back"),
+						`game:${id}`,
+					),
 				});
 			}
 		} catch (error) {
 			if (!(error instanceof GameError)) console.error("Browse failed", error);
-			return ctx.editText(errorText(error), { reply_markup: backKeyboard() });
+			return ctx.editText(errorText(error, locale), {
+				reply_markup: backKeyboard(locale),
+			});
 		}
 	},
 );
