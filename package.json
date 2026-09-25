@@ -1,0 +1,33 @@
+{
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "npx tsx watch --env-file .env src/index.ts",
+    "start": "npm run migrate && NODE_ENV=production node --env-file-if-exists=.env --import tsx src/index.ts",
+    "start:container": "node ./node_modules/drizzle-kit/bin.cjs migrate && NODE_ENV=production node --import tsx src/index.ts",
+    "test": "node --test",
+    "lint": "npx @biomejs/biome check src tests",
+    "lint:fix": "npx @biomejs/biome check --write src tests",
+    "generate": "node --env-file-if-exists=.env ./node_modules/drizzle-kit/bin.cjs generate",
+    "push": "node --env-file-if-exists=.env ./node_modules/drizzle-kit/bin.cjs push",
+    "migrate": "node --env-file-if-exists=.env ./node_modules/drizzle-kit/bin.cjs migrate",
+    "studio": "node --env-file-if-exists=.env ./node_modules/drizzle-kit/bin.cjs studio",
+    "prepare": "husky"
+  },
+  "dependencies": {
+    "@gramio/scenes": "^0.7.2",
+    "drizzle-kit": "^0.31.10",
+    "drizzle-orm": "^0.45.2",
+    "env-var": "^7.5.0",
+    "gramio": "^0.14.0",
+    "postgres": "^3.4.9",
+    "tsx": "^4.21.0"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "^2.4.12",
+    "@gramio/test": "^0.8.0",
+    "@types/node": "^25.6.0",
+    "husky": "^9.1.7",
+    "typescript": "^5.9.3"
+  }
+}
